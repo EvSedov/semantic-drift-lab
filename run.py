@@ -21,7 +21,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from demon import DemonPipeline
+from demon import DemonPipeline, KBIndex
+
+DEFAULT_KB = Path.home() / "knowledge-base"
 
 DEFAULT_JSONL = Path.home() / ".claude/MEMORY/LEARNING/REFLECTIONS/algorithm-reflections.jsonl"
 OUTPUT_DIR = Path(__file__).parent / "output"
@@ -35,6 +37,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--json", action="store_true", help="Вывести результат как JSON (без визуализаций)")
     parser.add_argument("--pretty", action="store_true", help="JSON с отступами (используется с --json)")
     parser.add_argument("--find-similar", metavar="QUERY", help="Найти сессии похожие на текст запроса")
+    parser.add_argument("--kb-query", metavar="QUERY", help="Поиск по knowledge-base markdown файлам")
+    parser.add_argument("--kb-path", type=Path, default=DEFAULT_KB, help="Путь к knowledge-base (по умолчанию ~/knowledge-base)")
+    parser.add_argument("--rebuild-index", action="store_true", help="Принудительно пересчитать KB-индекс")
     return parser.parse_args()
 
 
@@ -222,6 +227,41 @@ def plot_drift(result, output_dir: Path) -> None:
 
 def main() -> None:
     args = parse_args()
+
+    # ── Режим: поиск по knowledge-base ──
+    if args.kb_query:
+        if not args.kb_path.exists():
+            print(f"KB не найден: {args.kb_path}", file=sys.stderr)
+            sys.exit(1)
+        index = KBIndex.build(
+            args.kb_path,
+            force_rebuild=args.rebuild_index,
+            verbose=not args.json,
+        )
+        results = index.search(args.kb_query, top_k=args.top_k)
+
+        if args.json:
+            indent = 2 if args.pretty else None
+            output = {
+                "query": args.kb_query,
+                "n_indexed": index.n_files,
+                "results": [
+                    {
+                        "relative": r.relative,
+                        "section": r.section,
+                        "cosine_sim": round(r.cosine_sim, 4),
+                        "snippet": r.snippet,
+                    }
+                    for r in results
+                ],
+            }
+            print(json.dumps(output, ensure_ascii=False, indent=indent))
+        else:
+            print(f'\nРезультаты по запросу: "{args.kb_query}"\n')
+            for rank, r in enumerate(results, 1):
+                print(f"  {rank}. [{r.cosine_sim:.3f}] {r.relative}")
+                print(f"       {r.snippet[:100]}…")
+        return
 
     if not args.input.exists():
         print(f"Файл не найден: {args.input}", file=sys.stderr)

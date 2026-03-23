@@ -40,6 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--kb-query", metavar="QUERY", help="Поиск по knowledge-base markdown файлам")
     parser.add_argument("--kb-path", type=Path, default=DEFAULT_KB, help="Путь к knowledge-base (по умолчанию ~/knowledge-base)")
     parser.add_argument("--rebuild-index", action="store_true", help="Принудительно пересчитать KB-индекс")
+    parser.add_argument("--min-cosine", type=float, default=0.80, help="Минимальный порог cos для KB-поиска (по умолчанию 0.80)")
     return parser.parse_args()
 
 
@@ -238,18 +239,22 @@ def main() -> None:
             force_rebuild=args.rebuild_index,
             verbose=not args.json,
         )
-        results = index.search(args.kb_query, top_k=args.top_k)
+        results = index.search(args.kb_query, top_k=args.top_k, min_cosine=args.min_cosine)
+        all_low = all(r.low_confidence for r in results)
 
         if args.json:
             indent = 2 if args.pretty else None
             output = {
                 "query": args.kb_query,
                 "n_indexed": index.n_files,
+                "min_cosine": args.min_cosine,
+                "low_confidence_warning": all_low,
                 "results": [
                     {
                         "relative": r.relative,
                         "section": r.section,
                         "cosine_sim": round(r.cosine_sim, 4),
+                        "low_confidence": r.low_confidence,
                         "snippet": r.snippet,
                     }
                     for r in results
@@ -257,9 +262,12 @@ def main() -> None:
             }
             print(json.dumps(output, ensure_ascii=False, indent=indent))
         else:
+            if all_low:
+                print(f'\n⚠️  Низкая уверенность (все результаты ниже {args.min_cosine}) — тема, вероятно, отсутствует в базе знаний.')
             print(f'\nРезультаты по запросу: "{args.kb_query}"\n')
             for rank, r in enumerate(results, 1):
-                print(f"  {rank}. [{r.cosine_sim:.3f}] {r.relative}")
+                flag = " ⚠️ low confidence" if r.low_confidence else ""
+                print(f"  {rank}. [{r.cosine_sim:.3f}]{flag} {r.relative}")
                 print(f"       {r.snippet[:100]}…")
         return
 

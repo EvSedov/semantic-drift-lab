@@ -240,7 +240,17 @@ def main() -> None:
             verbose=not args.json,
         )
         results = index.search(args.kb_query, top_k=args.top_k, min_cosine=args.min_cosine)
-        all_low = all(r.low_confidence for r in results)
+
+        top1_cos = results[0].cosine_sim if results else 0.0
+        if top1_cos >= 0.85:
+            trust = "high"
+            trust_label = "✅ Можно доверять"
+        elif top1_cos >= 0.80:
+            trust = "medium"
+            trust_label = "⚠️  Доверяй с осторожностью"
+        else:
+            trust = "none"
+            trust_label = "❌ Не доверяй — тема, вероятно, отсутствует в KB"
 
         if args.json:
             indent = 2 if args.pretty else None
@@ -248,7 +258,8 @@ def main() -> None:
                 "query": args.kb_query,
                 "n_indexed": index.n_files,
                 "min_cosine": args.min_cosine,
-                "low_confidence_warning": all_low,
+                "trust": trust,
+                "top1_cosine": round(top1_cos, 4),
                 "results": [
                     {
                         "relative": r.relative,
@@ -262,11 +273,10 @@ def main() -> None:
             }
             print(json.dumps(output, ensure_ascii=False, indent=indent))
         else:
-            if all_low:
-                print(f'\n⚠️  Низкая уверенность (все результаты ниже {args.min_cosine}) — тема, вероятно, отсутствует в базе знаний.')
-            print(f'\nРезультаты по запросу: "{args.kb_query}"\n')
+            print(f'\n[KB] {trust_label} | top-1 cos={top1_cos:.3f}')
+            print(f'Результаты по запросу: "{args.kb_query}"\n')
             for rank, r in enumerate(results, 1):
-                flag = " ⚠️ low confidence" if r.low_confidence else ""
+                flag = " ⚠️" if r.low_confidence else ""
                 print(f"  {rank}. [{r.cosine_sim:.3f}]{flag} {r.relative}")
                 print(f"       {r.snippet[:100]}…")
         return

@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--svd-components", type=int, default=8)
     parser.add_argument("--json", action="store_true", help="Вывести результат как JSON (без визуализаций)")
     parser.add_argument("--pretty", action="store_true", help="JSON с отступами (используется с --json)")
+    parser.add_argument("--find-similar", metavar="QUERY", help="Найти сессии похожие на текст запроса")
     return parser.parse_args()
 
 
@@ -231,6 +232,26 @@ def main() -> None:
         top_k_similar=args.top_k,
     )
     result = pipeline.run(args.input)
+
+    if args.find_similar:
+        matches = pipeline.find_similar(args.find_similar, result, top_k=args.top_k)
+        if args.json:
+            indent = 2 if args.pretty else None
+            output = {
+                "query": args.find_similar,
+                "results": [
+                    {"idx": s.idx, "task": s.task,
+                     "cosine_sim": round(s.cosine_sim, 4),
+                     "stability": round(s.stability, 4)}
+                    for s in matches
+                ],
+            }
+            print(json.dumps(output, ensure_ascii=False, indent=indent))
+        else:
+            print(f'\nПохожие сессии для: "{args.find_similar}"\n')
+            for rank, s in enumerate(matches, 1):
+                print(f"  {rank}. [{s.idx}] cos={s.cosine_sim:.3f} | {s.task}")
+        return
 
     if args.json:
         indent = 2 if args.pretty else None

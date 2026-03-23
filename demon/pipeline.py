@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 from pathlib import Path
 
 import numpy as np
@@ -50,6 +51,7 @@ class PipelineResult:
     takens_embedded: np.ndarray         # delay embedding sentiment-ряда
     svd_explained_variance: float
     n_attractors: int
+    embedder: SVDEmbedder = field(default=None, repr=False)  # для find_similar
 
 
 class DemonPipeline:
@@ -157,4 +159,30 @@ class DemonPipeline:
             takens_embedded=takens,
             svd_explained_variance=embedder.explained_variance_ratio_,
             n_attractors=len(attractors),
+            embedder=embedder,
         )
+
+    def find_similar(
+        self,
+        query: str,
+        result: PipelineResult,
+        top_k: int | None = None,
+    ) -> list[SimilarSession]:
+        """
+        Найти сессии из result, наиболее похожие на произвольный текст query.
+        Использует уже обученный embedder из PipelineResult.
+        """
+        k = top_k or self.top_k_similar
+        query_vec = result.embedder.transform([query])  # (1, n_components)
+        sims = (result.embeddings @ query_vec.T).flatten()  # cosine similarity
+
+        top_idx = np.argsort(sims)[::-1][:k]
+        return [
+            SimilarSession(
+                idx=int(i),
+                task=result.records[i].task,
+                cosine_sim=float(sims[i]),
+                stability=float(result.stability_scores[i]),
+            )
+            for i in top_idx
+        ]

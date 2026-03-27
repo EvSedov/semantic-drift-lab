@@ -290,11 +290,13 @@ def main() -> None:
         )
         results = index.search(args.doc_query, top_k=args.top_k, min_cosine=args.min_cosine)
 
+        top1_score = results[0].score if results else 0.0
+        top1_conf = results[0].confidence if results else 0.0
         top1_cos = results[0].cosine_sim if results else 0.0
-        if top1_cos >= 0.85:
+        if top1_conf >= 0.85:
             trust = "high"
             trust_label = "✅ Можно доверять"
-        elif top1_cos >= 0.80:
+        elif top1_conf >= 0.80:
             trust = "medium"
             trust_label = "⚠️  Доверяй с осторожностью"
         else:
@@ -308,11 +310,15 @@ def main() -> None:
                 "n_indexed": index.n_files,
                 "min_cosine": args.min_cosine,
                 "trust": trust,
+                "top1_confidence": round(top1_conf, 4),
+                "top1_score": round(top1_score, 4),
                 "top1_cosine": round(top1_cos, 4),
                 "results": [
                     {
                         "relative": r.relative,
                         "section": r.section,
+                        "confidence": round(r.confidence, 4),
+                        "score": round(r.score, 4),
                         "cosine_sim": round(r.cosine_sim, 4),
                         "low_confidence": r.low_confidence,
                         "snippet": r.snippet,
@@ -322,11 +328,17 @@ def main() -> None:
             }
             print(json.dumps(output, ensure_ascii=False, indent=indent))
         else:
-            print(f'\n[Docs] {trust_label} | top-1 cos={top1_cos:.3f}')
+            print(
+                f"\n[Docs] {trust_label} | top-1 confidence={top1_conf:.3f} "
+                f"| score={top1_score:.3f} | cos={top1_cos:.3f}"
+            )
             print(f'Результаты по запросу: "{args.doc_query}"\n')
             for rank, r in enumerate(results, 1):
                 flag = " ⚠️" if r.low_confidence else ""
-                print(f"  {rank}. [{r.cosine_sim:.3f}]{flag} {r.relative}")
+                print(
+                    f"  {rank}. [conf={r.confidence:.3f} | score={r.score:.3f} "
+                    f"| cos={r.cosine_sim:.3f}]{flag} {r.relative}"
+                )
                 print(f"       {r.snippet[:100]}…")
         return
 

@@ -39,6 +39,8 @@ class SearchResult:
     path: Path
     relative: str
     section: str
+    score: float
+    confidence: float
     cosine_sim: float
     snippet: str
     low_confidence: bool = False
@@ -103,6 +105,8 @@ def _hybrid_score(query: str, relative: str, text: str, cosine_sim: float) -> fl
     exact_name_bonus = 0.0
     exact_path_bonus = 0.0
     early_text_bonus = 0.0
+    title_bonus = 0.0
+    repetition_bonus = 0.0
 
     if query_lower == path_name:
         exact_name_bonus = 0.25
@@ -121,6 +125,14 @@ def _hybrid_score(query: str, relative: str, text: str, cosine_sim: float) -> fl
         else:
             early_text_bonus = 0.02
 
+    title_window = text_lower[:160]
+    if query_lower in title_window:
+        title_bonus = 0.10
+
+    occurrence_count = text_lower.count(query_lower)
+    if occurrence_count > 0:
+        repetition_bonus = min(0.12, 0.03 * occurrence_count)
+
     return float(
         cosine_sim
         + 0.18 * token_overlap_path
@@ -128,6 +140,8 @@ def _hybrid_score(query: str, relative: str, text: str, cosine_sim: float) -> fl
         + exact_name_bonus
         + exact_path_bonus
         + early_text_bonus
+        + title_bonus
+        + repetition_bonus
     )
 
 
@@ -274,18 +288,24 @@ class MarkdownCorpusIndex:
             section = parts[0] if len(parts) > 1 else "."
             snippet = e.texts[i][:120].replace("\n", " ").strip()
             cosine_sim = float(sims[i])
+            score = _hybrid_score(query, relative, e.texts[i], cosine_sim)
+            confidence = max(0.0, min(1.0, 0.7 * cosine_sim + 0.3 * min(score, 1.0)))
             result = SearchResult(
                 path=path,
                 relative=relative,
                 section=section,
+                score=score,
+                confidence=confidence,
                 cosine_sim=cosine_sim,
                 snippet=snippet,
-                low_confidence=cosine_sim < min_cosine,
+                low_confidence=confidence < min_cosine,
             )
-            score = _hybrid_score(query, relative, e.texts[i], cosine_sim)
             scored_results.append((score, result))
 
-        scored_results.sort(key=lambda item: item[0], reverse=True)
+        scored_results.sort(
+            key=lambda item: (item[1].score, item[1].confidence, item[1].cosine_sim),
+            reverse=True,
+        )
         results = [result for _score, result in scored_results[:top_k]]
 
         confident = [r for r in results if not r.low_confidence]

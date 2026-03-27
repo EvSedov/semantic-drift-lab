@@ -328,6 +328,8 @@ def main() -> None:
                                 "explain": {
                                     "token_overlap_path": round(float(r.explain["token_overlap_path"]), 4),
                                     "token_overlap_text": round(float(r.explain["token_overlap_text"]), 4),
+                                    "name_bonus": round(float(r.explain["name_bonus"]), 4),
+                                    "path_substring_bonus": round(float(r.explain["path_substring_bonus"]), 4),
                                     "path_bonus": round(float(r.explain["path_bonus"]), 4),
                                     "title_bonus": round(float(r.explain["title_bonus"]), 4),
                                     "early_text_bonus": round(float(r.explain["early_text_bonus"]), 4),
@@ -371,8 +373,18 @@ def main() -> None:
                     )
                     print(
                         "         "
+                        f"name_bonus={float(r.explain['name_bonus']):.3f} "
+                        "(бонус за подстроку в имени файла)"
+                    )
+                    print(
+                        "         "
+                        f"path_substring_bonus={float(r.explain['path_substring_bonus']):.3f} "
+                        "(бонус за подстроку в полном пути)"
+                    )
+                    print(
+                        "         "
                         f"path_bonus={float(r.explain['path_bonus']):.3f} "
-                        "(бонус за имя файла или путь)"
+                        "(суммарный бонус пути = имя файла + полный путь)"
                     )
                     print(
                         "         "

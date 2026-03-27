@@ -1,10 +1,15 @@
-# demon-manifold
+# semantic-drift-lab
 
-DEMON-inspired детерминированный пайплайн: SVD + Takens + kNN Stability + Kalman.
+Semantic Drift Lab: детерминированный исследовательский пайплайн для анализа текстового корпуса, устойчивости и дрейфа.
 
 ## Структура
 
 ```
+semantic_drift_lab/
+  __init__.py
+  pipeline.py
+  adapters/
+    __init__.py
 demon/
   svd_embed.py      — TF-IDF + TruncatedSVD (шаг 1)
   takens_embed.py   — delay embedding временного ряда (шаг 2)

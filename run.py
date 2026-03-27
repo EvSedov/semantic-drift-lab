@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DEMON-Manifold: точка входа.
+Semantic Drift Lab: точка входа.
 Запускает универсальный аналитический пайплайн для текстового корпуса
 и опционального числового ряда, а также поддерживает отдельный поиск
 по markdown-корпусу.
@@ -47,7 +47,7 @@ def get_numpy():
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="DEMON-Manifold: анализ текстового корпуса, похожих записей и drift-сигнала"
+        description="Semantic Drift Lab: анализ текстового корпуса, похожих записей и drift-сигнала"
     )
     parser.add_argument("--input", type=Path, default=DEFAULT_JSONL)
     parser.add_argument("--top-k", type=int, default=3)
@@ -123,7 +123,7 @@ def run_report(result, top_k: int) -> None:
     records = result.records
     n = len(records)
 
-    print_section(f"DEMON-Manifold | {n} сессий проанализировано")
+    print_section(f"Semantic Drift Lab | {n} сессий проанализировано")
 
     # SVD info
     print(f"\n[SVD] Объяснённая дисперсия: {result.svd_explained_variance:.1%}")
@@ -194,7 +194,7 @@ def plot_clusters(result, output_dir: Path) -> None:
                     xytext=(6, 4), fontsize=7, alpha=0.8)
 
     plt.colorbar(scatter, ax=ax, label="kNN Stability")
-    ax.set_title("DEMON: SVD Embeddings + kNN Stability\n(зелёный = аттрактор, красный = шум)")
+    ax.set_title("Semantic Drift Lab: SVD Embeddings + kNN Stability\n(зелёный = аттрактор, красный = шум)")
     ax.set_xlabel("SVD Component 1")
     ax.set_ylabel("SVD Component 2")
     ax.grid(True, alpha=0.3)
@@ -253,7 +253,7 @@ def main() -> None:
 
     # ── Дополнительный режим: поиск по markdown-корпусу ──
     if args.kb_query:
-        from demon import MarkdownCorpusIndex
+        from semantic_drift_lab import MarkdownCorpusIndex
 
         if not args.kb_path.exists():
             print(f"KB не найден: {args.kb_path}", file=sys.stderr)
@@ -309,9 +309,9 @@ def main() -> None:
         print(f"Файл не найден: {args.input}", file=sys.stderr)
         sys.exit(1)
 
-    from demon import DemonPipeline
+    from semantic_drift_lab import SemanticDriftPipeline
 
-    pipeline = DemonPipeline(
+    pipeline = SemanticDriftPipeline(
         svd_components=args.svd_components,
         top_k_similar=args.top_k,
     )

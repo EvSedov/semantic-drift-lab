@@ -14,7 +14,6 @@ semantic_drift_lab/
   pipeline.py
   adapters/
     __init__.py
-demon/              — legacy compatibility layer
 run.py              — точка входа
 output/             — PNG визуализации (создаётся автоматически)
 ```

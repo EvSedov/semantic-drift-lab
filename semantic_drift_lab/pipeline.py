@@ -52,11 +52,6 @@ class CorpusRecord:
     def within_budget(self) -> bool:
         return bool(self.meta.get("within_budget", True))
 
-
-# Совместимость со старым именем модели
-SessionRecord = CorpusRecord
-
-
 @dataclass
 class SimilarSession:
     idx: int
@@ -103,10 +98,7 @@ class SemanticDriftPipeline:
         self.top_k_similar = top_k_similar
 
     def load_jsonl(self, path: str | Path) -> list[CorpusRecord]:
-        """
-        Совместимый загрузчик старого PAI JSONL.
-        Новый код лучше строить вокруг adapters.load_pai_jsonl.
-        """
+        """Загружает PAI-подобный JSONL через адаптер."""
         from .adapters.pai_jsonl import load_pai_jsonl
 
         return load_pai_jsonl(path)
@@ -200,14 +192,9 @@ class SemanticDriftPipeline:
             for i in top_idx
         ]
 
-
-DemonPipeline = SemanticDriftPipeline
-
 __all__ = [
     "CorpusRecord",
-    "SessionRecord",
     "SimilarSession",
     "PipelineResult",
     "SemanticDriftPipeline",
-    "DemonPipeline",
 ]

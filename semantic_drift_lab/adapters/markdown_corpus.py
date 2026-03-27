@@ -5,8 +5,7 @@ Markdown corpus adapter.
 и позволяет искать наиболее похожие документы по текстовому запросу.
 
 Это не часть базового ядра пайплайна, а дополнительный адаптер источника
-данных. Для обратной совместимости экспортируются также старые имена
-KBIndex и KBResult.
+данных.
 """
 from __future__ import annotations
 
@@ -30,10 +29,8 @@ EXCLUDE_DIRS: set[str] = {
 }
 
 PRIMARY_CACHE_DIR = Path.home() / ".cache" / "semantic-drift-lab"
-LEGACY_CACHE_DIR = Path.home() / ".cache" / "demon-manifold"
 CACHE_FILE_NAME = "markdown_corpus_index.pkl"
 PRIMARY_CACHE_FILE = PRIMARY_CACHE_DIR / CACHE_FILE_NAME
-LEGACY_CACHE_FILE = LEGACY_CACHE_DIR / CACHE_FILE_NAME
 MIN_TEXT_LENGTH = 50  # игнорируем файлы короче N символов
 
 
@@ -91,20 +88,19 @@ def _cache_key(files: list[Path]) -> tuple[int, float]:
 
 
 def _load_cache(corpus_root: Path) -> _CacheEntry | None:
-    for cache_file in (PRIMARY_CACHE_FILE, LEGACY_CACHE_FILE):
-        if not cache_file.exists():
-            continue
-        try:
-            with open(cache_file, "rb") as f:
-                entry: _CacheEntry = pickle.load(f)
-            if entry.corpus_root != str(corpus_root):
-                continue
-            files = _collect_files(corpus_root)
-            n, mts = _cache_key(files)
-            if entry.n_files == n and abs(entry.mtime_sum - mts) < 1.0:
-                return entry
-        except Exception:
-            continue
+    if not PRIMARY_CACHE_FILE.exists():
+        return None
+    try:
+        with open(PRIMARY_CACHE_FILE, "rb") as f:
+            entry: _CacheEntry = pickle.load(f)
+        if entry.corpus_root != str(corpus_root):
+            return None
+        files = _collect_files(corpus_root)
+        n, mts = _cache_key(files)
+        if entry.n_files == n and abs(entry.mtime_sum - mts) < 1.0:
+            return entry
+    except Exception:
+        pass
     return None
 
 
@@ -237,8 +233,3 @@ class MarkdownCorpusIndex:
     @property
     def explained_variance(self) -> float:
         return self._entry.embedder.explained_variance_ratio_
-
-
-# Совместимость со старыми именами
-KBIndex = MarkdownCorpusIndex
-KBResult = SearchResult

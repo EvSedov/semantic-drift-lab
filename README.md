@@ -68,7 +68,6 @@ semantic_drift_lab/   # основной пакет проекта
   pipeline.py
   adapters/
     __init__.py
-demon/                # legacy-слой совместимости со старыми импортами
 run.py              # CLI и точка входа
 requirements.txt    # зависимости
 README.md
@@ -131,8 +130,6 @@ records = [
 result = SemanticDriftPipeline(svd_components=2).run_records(records)
 print(result.embeddings.shape)
 ```
-
-Старые импорты через `demon` пока сохранены для совместимости, но новый код лучше писать уже через `semantic_drift_lab`.
 
 ### Полный анализ JSONL
 

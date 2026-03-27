@@ -23,7 +23,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from demon import DemonPipeline, KBIndex
+from demon import DemonPipeline, MarkdownCorpusIndex
 
 DEFAULT_KB = Path.home() / "knowledge-base"
 
@@ -238,7 +238,7 @@ def main() -> None:
         if not args.kb_path.exists():
             print(f"KB не найден: {args.kb_path}", file=sys.stderr)
             sys.exit(1)
-        index = KBIndex.build(
+        index = MarkdownCorpusIndex.build(
             args.kb_path,
             force_rebuild=args.rebuild_index,
             verbose=not args.json,

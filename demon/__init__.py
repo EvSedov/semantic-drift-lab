@@ -7,7 +7,7 @@ from .takens_embed import takens_embedding
 from .knn_stability import knn_stability
 from .kalman_drift import KalmanDrift
 from .pipeline import DemonPipeline
-from .kb_search import KBIndex, KBResult
+from .adapters import MarkdownCorpusIndex, SearchResult, KBIndex, KBResult
 
 __all__ = [
     "SVDEmbedder",
@@ -15,6 +15,8 @@ __all__ = [
     "knn_stability",
     "KalmanDrift",
     "DemonPipeline",
+    "MarkdownCorpusIndex",
+    "SearchResult",
     "KBIndex",
     "KBResult",
 ]

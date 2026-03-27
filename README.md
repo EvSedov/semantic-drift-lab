@@ -424,6 +424,23 @@ jsonl-экспорт    -> jsonl-адаптер   -> records -> пайплайн
 логи или csv     -> свой адаптер    -> records -> пайплайн -> структура данных и аномалии
 ```
 
+Для самого простого сценария в репозитории уже есть готовая утилита подготовки корпуса:
+
+[`scripts/build_jsonl_from_folder.py`](./scripts/build_jsonl_from_folder.py)
+
+Она проходит по папке с `.md`, `.txt` или `.text` файлами и собирает из них `data.jsonl`, где:
+
+- `label` — имя файла без расширения;
+- `text` — содержимое файла;
+- `source` — относительный путь;
+- `category` — первая директория относительно корня папки.
+
+Пример:
+
+```bash
+python3 scripts/build_jsonl_from_folder.py ./documents --output data.jsonl --strip-markdown
+```
+
 ## Структура проекта
 
 ```text
@@ -432,6 +449,8 @@ semantic_drift_lab/   # основной пакет проекта
   pipeline.py
   adapters/
     __init__.py
+scripts/
+  build_jsonl_from_folder.py  # сборка data.jsonl из папки с текстовыми файлами
 run.py              # CLI и точка входа
 requirements.txt    # зависимости
 README.md

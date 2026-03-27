@@ -2,14 +2,12 @@
 DEMON Pipeline — объединяет все 4 шага в единый детерминированный пайплайн.
 
 Поток данных:
-  .jsonl → [SVD embed] → [kNN stability] → похожие сессии
-         → [Takens embed] → [Kalman drift] → детектор дрейфа качества
+  records → [SVD embed] → [kNN stability] → похожие записи
+          → [Takens embed] → [Kalman drift] → детектор дрейфа сигнала
 """
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 from pathlib import Path
 
 import numpy as np
@@ -21,15 +19,41 @@ from .kalman_drift import KalmanDrift, KalmanResult
 
 
 @dataclass
-class SessionRecord:
+class CorpusRecord:
     idx: int
-    task: str
-    effort: str
-    sentiment: float
-    criteria_count: int
-    criteria_passed: int
-    within_budget: bool
-    text: str  # объединённый текст для SVD
+    label: str
+    text: str
+    signal: float = 0.0
+    kind: str = "generic"
+    meta: dict = field(default_factory=dict)
+
+    @property
+    def task(self) -> str:
+        return str(self.meta.get("task", self.label))
+
+    @property
+    def effort(self) -> str:
+        return str(self.meta.get("effort", ""))
+
+    @property
+    def sentiment(self) -> float:
+        return float(self.signal)
+
+    @property
+    def criteria_count(self) -> int:
+        return int(self.meta.get("criteria_count", 0))
+
+    @property
+    def criteria_passed(self) -> int:
+        return int(self.meta.get("criteria_passed", 0))
+
+    @property
+    def within_budget(self) -> bool:
+        return bool(self.meta.get("within_budget", True))
+
+
+# Совместимость со старым именем модели
+SessionRecord = CorpusRecord
 
 
 @dataclass
@@ -42,7 +66,7 @@ class SimilarSession:
 
 @dataclass
 class PipelineResult:
-    records: list[SessionRecord]
+    records: list[CorpusRecord]
     embeddings: np.ndarray              # (n, svd_components)
     stability_scores: np.ndarray        # (n,) — kNN stability
     attractor_indices: list[int]        # индексы устойчивых точек
@@ -55,7 +79,7 @@ class PipelineResult:
 
 
 class DemonPipeline:
-    """Детерминированный пайплайн DEMON для анализа сессий PAI."""
+    """Детерминированный пайплайн для анализа текстового корпуса и сигнала."""
 
     def __init__(
         self,
@@ -77,37 +101,25 @@ class DemonPipeline:
         self.kalman_R = kalman_R
         self.top_k_similar = top_k_similar
 
-    def load_jsonl(self, path: str | Path) -> list[SessionRecord]:
-        records = []
-        with open(path, encoding="utf-8") as f:
-            for i, line in enumerate(f):
-                line = line.strip()
-                if not line:
-                    continue
-                d = json.loads(line)
-                text_parts = [
-                    d.get("task_description", ""),
-                    d.get("reflection_q1", ""),
-                    d.get("reflection_q2", ""),
-                    d.get("reflection_q3", ""),
-                    d.get("effort_level", ""),
-                ]
-                records.append(SessionRecord(
-                    idx=i,
-                    task=d.get("task_description", ""),
-                    effort=d.get("effort_level", ""),
-                    sentiment=float(d.get("implied_sentiment", 5)),
-                    criteria_count=int(d.get("criteria_count", 0)),
-                    criteria_passed=int(d.get("criteria_passed", 0)),
-                    within_budget=bool(d.get("within_budget", True)),
-                    text=" ".join(p for p in text_parts if p),
-                ))
-        return records
+    def load_jsonl(self, path: str | Path) -> list[CorpusRecord]:
+        """
+        Совместимый загрузчик старого PAI JSONL.
+        Новый код лучше строить вокруг adapters.load_pai_jsonl.
+        """
+        from .adapters.pai_jsonl import load_pai_jsonl
+
+        return load_pai_jsonl(path)
 
     def run(self, jsonl_path: str | Path) -> PipelineResult:
         records = self.load_jsonl(jsonl_path)
+        return self.run_records(records)
+
+    def run_records(self, records: list[CorpusRecord]) -> PipelineResult:
+        if not records:
+            raise ValueError("Пустой корпус: для анализа нужна хотя бы одна запись.")
+
         texts = [r.text for r in records]
-        sentiments = np.array([r.sentiment for r in records])
+        signals = np.array([r.signal for r in records], dtype=float)
 
         # ── Шаг 1: SVD embedding ──
         embedder = SVDEmbedder(n_components=self.svd_components)
@@ -123,7 +135,7 @@ class DemonPipeline:
         np.fill_diagonal(sim_matrix, -1)  # исключаем самосходство
 
         similar: dict[int, list[SimilarSession]] = {}
-        for i, rec in enumerate(records):
+        for i, _rec in enumerate(records):
             top_idx = np.argsort(sim_matrix[i])[::-1][: self.top_k_similar]
             similar[i] = [
                 SimilarSession(
@@ -135,19 +147,19 @@ class DemonPipeline:
                 for j in top_idx
             ]
 
-        # ── Шаг 4: Takens Embedding на ряду sentiment ──
-        if len(sentiments) >= 4:
-            tau = self.takens_delay or optimal_delay(sentiments)
+        # ── Шаг 4: Takens Embedding на сигнальном ряду ──
+        if len(signals) >= 4:
+            tau = self.takens_delay or optimal_delay(signals)
             # Убеждаемся что dim/delay дают хотя бы 2 вектора
-            max_dim = max(2, (len(sentiments) - 1) // max(tau, 1))
+            max_dim = max(2, (len(signals) - 1) // max(tau, 1))
             dim = min(self.takens_dim, max_dim)
-            takens = takens_embedding(sentiments, delay=tau, embedding_dim=dim)
+            takens = takens_embedding(signals, delay=tau, embedding_dim=dim)
         else:
-            takens = sentiments.reshape(-1, 1)
+            takens = signals.reshape(-1, 1)
 
         # ── Шаг 5: Kalman Drift Detection ──
         kalman = KalmanDrift(process_noise=self.kalman_Q, measurement_noise=self.kalman_R)
-        kalman_result = kalman.filter(sentiments)
+        kalman_result = kalman.filter(signals)
 
         return PipelineResult(
             records=records,

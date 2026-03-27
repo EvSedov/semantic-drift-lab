@@ -68,6 +68,7 @@ demon/
   adapters/
     __init__.py
     markdown_corpus.py  # адаптер для поиска по markdown-корпусу
+    pai_jsonl.py        # адаптер для PAI-подобного JSONL
   svd_embed.py      # TF-IDF + TruncatedSVD
   knn_stability.py  # устойчивость локальной окрестности
   takens_embed.py   # delay embedding временного ряда
@@ -253,6 +254,8 @@ pip install -r requirements.txt
 - сделать markdown search отдельным адаптером, а не частью основного нарратива;
 - разрешить запуск только текстового анализа без временного ряда;
 - добавить другие источники данных: CSV, plain text corpus, logs, notes.
+
+Часть этого движения уже началась: markdown-поиск и загрузка PAI JSONL вынесены в адаптеры, а ядро постепенно переходит к более общему формату записи.
 
 ## Связь с оригинальным DEMON
 

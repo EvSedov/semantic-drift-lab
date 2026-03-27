@@ -44,6 +44,30 @@ def get_numpy():
     return np
 
 
+def import_runtime_symbol(module_name: str, symbol_name: str):
+    """
+    Импортирует runtime-зависимости с понятной диагностикой вместо traceback.
+    """
+    try:
+        module = __import__(module_name, fromlist=[symbol_name])
+        return getattr(module, symbol_name)
+    except ModuleNotFoundError as exc:
+        missing = exc.name or "dependency"
+        print(
+            "Не хватает Python-зависимостей для запуска аналитических режимов.\n"
+            f"Отсутствует модуль: {missing}\n\n"
+            "Установи зависимости проекта и запусти команду из venv:\n"
+            "  python3 -m venv .venv\n"
+            "  source .venv/bin/activate\n"
+            "  pip install -r requirements.txt\n"
+            "  python run.py ...\n\n"
+            "Или запусти сразу так:\n"
+            "  .venv/bin/python run.py ...",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from exc
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Semantic Drift Lab: анализ текстового корпуса, похожих записей и drift-сигнала"
@@ -252,7 +276,9 @@ def main() -> None:
 
     # ── Дополнительный режим: поиск по markdown-корпусу ──
     if args.doc_query:
-        from semantic_drift_lab import MarkdownCorpusIndex
+        MarkdownCorpusIndex = import_runtime_symbol(
+            "semantic_drift_lab", "MarkdownCorpusIndex"
+        )
 
         if not args.doc_path.exists():
             print(f"Директория не найдена: {args.doc_path}", file=sys.stderr)
@@ -308,7 +334,9 @@ def main() -> None:
         print(f"Файл не найден: {args.input}", file=sys.stderr)
         sys.exit(1)
 
-    from semantic_drift_lab import SemanticDriftPipeline
+    SemanticDriftPipeline = import_runtime_symbol(
+        "semantic_drift_lab", "SemanticDriftPipeline"
+    )
 
     pipeline = SemanticDriftPipeline(
         svd_components=args.svd_components,

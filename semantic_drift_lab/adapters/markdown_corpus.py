@@ -71,6 +71,66 @@ def _strip_markdown(text: str) -> str:
     return text.strip()
 
 
+def _tokenize(text: str) -> list[str]:
+    return re.findall(r"[a-zA-Zа-яА-Я0-9_+-]+", text.lower())
+
+
+def _hybrid_score(query: str, relative: str, text: str, cosine_sim: float) -> float:
+    """
+    Гибридный скоринг поверх cosine similarity.
+
+    Идея: сохранить латентную семантическую близость, но усилить документы,
+    где запрос явно встречается в имени файла, пути или ранних фрагментах текста.
+    """
+    query_lower = query.strip().lower()
+    if not query_lower:
+        return float(cosine_sim)
+
+    path_lower = relative.lower()
+    text_lower = text.lower()
+    path_name = Path(relative).stem.lower()
+
+    query_tokens = set(_tokenize(query_lower))
+    path_tokens = set(_tokenize(path_lower))
+    text_tokens = set(_tokenize(text_lower))
+
+    token_overlap_path = 0.0
+    token_overlap_text = 0.0
+    if query_tokens:
+        token_overlap_path = len(query_tokens & path_tokens) / len(query_tokens)
+        token_overlap_text = len(query_tokens & text_tokens) / len(query_tokens)
+
+    exact_name_bonus = 0.0
+    exact_path_bonus = 0.0
+    early_text_bonus = 0.0
+
+    if query_lower == path_name:
+        exact_name_bonus = 0.25
+    elif query_lower in path_name:
+        exact_name_bonus = 0.18
+
+    if query_lower in path_lower:
+        exact_path_bonus = 0.12
+
+    pos = text_lower.find(query_lower)
+    if pos >= 0:
+        if pos < 200:
+            early_text_bonus = 0.12
+        elif pos < 800:
+            early_text_bonus = 0.06
+        else:
+            early_text_bonus = 0.02
+
+    return float(
+        cosine_sim
+        + 0.18 * token_overlap_path
+        + 0.10 * token_overlap_text
+        + exact_name_bonus
+        + exact_path_bonus
+        + early_text_bonus
+    )
+
+
 def _collect_files(corpus_root: Path) -> list[Path]:
     """Рекурсивно собирает .md файлы, исключая EXCLUDE_DIRS."""
     files = []
@@ -105,9 +165,13 @@ def _load_cache(corpus_root: Path) -> _CacheEntry | None:
 
 
 def _save_cache(entry: _CacheEntry) -> None:
-    PRIMARY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    with open(PRIMARY_CACHE_FILE, "wb") as f:
-        pickle.dump(entry, f)
+    try:
+        PRIMARY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(PRIMARY_CACHE_FILE, "wb") as f:
+            pickle.dump(entry, f)
+    except OSError:
+        # Кэш — это оптимизация, а не обязательная часть работы поиска.
+        pass
 
 
 class MarkdownCorpusIndex:
@@ -196,12 +260,10 @@ class MarkdownCorpusIndex:
         e = self._entry
         query_vec = e.embedder.transform([query])
         sims = (e.embeddings @ query_vec.T).flatten()
-
-        top_idx = np.argsort(sims)[::-1][:top_k]
         corpus_root = Path(e.corpus_root)
+        scored_results: list[tuple[float, SearchResult]] = []
 
-        results = []
-        for i in top_idx:
+        for i in range(len(e.file_paths)):
             path = Path(e.file_paths[i])
             try:
                 relative = str(path.relative_to(corpus_root))
@@ -211,17 +273,20 @@ class MarkdownCorpusIndex:
             parts = relative.split("/")
             section = parts[0] if len(parts) > 1 else "."
             snippet = e.texts[i][:120].replace("\n", " ").strip()
-
-            results.append(
-                SearchResult(
-                    path=path,
-                    relative=relative,
-                    section=section,
-                    cosine_sim=float(sims[i]),
-                    snippet=snippet,
-                    low_confidence=float(sims[i]) < min_cosine,
-                )
+            cosine_sim = float(sims[i])
+            result = SearchResult(
+                path=path,
+                relative=relative,
+                section=section,
+                cosine_sim=cosine_sim,
+                snippet=snippet,
+                low_confidence=cosine_sim < min_cosine,
             )
+            score = _hybrid_score(query, relative, e.texts[i], cosine_sim)
+            scored_results.append((score, result))
+
+        scored_results.sort(key=lambda item: item[0], reverse=True)
+        results = [result for _score, result in scored_results[:top_k]]
 
         confident = [r for r in results if not r.low_confidence]
         return confident if confident else results

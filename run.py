@@ -80,6 +80,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--find-similar", metavar="QUERY", help="Найти записи корпуса, похожие на текст запроса")
     parser.add_argument("--doc-query", metavar="QUERY", help="Поиск по markdown-документам (дополнительный режим)")
     parser.add_argument("--doc-path", type=Path, default=DEFAULT_MARKDOWN_DIR, help="Путь к markdown-документам (по умолчанию ~/documents)")
+    parser.add_argument("--explain-search", action="store_true", help="Показать, за счёт чего документы поднялись в топ для --doc-query")
     parser.add_argument("--rebuild-index", action="store_true", help="Принудительно пересчитать индекс markdown-корпуса")
     parser.add_argument("--min-cosine", type=float, default=0.80, help="Минимальный порог cos для поиска по markdown-корпусу (по умолчанию 0.80)")
     return parser.parse_args()
@@ -322,6 +323,22 @@ def main() -> None:
                         "cosine_sim": round(r.cosine_sim, 4),
                         "low_confidence": r.low_confidence,
                         "snippet": r.snippet,
+                        **(
+                            {
+                                "explain": {
+                                    "token_overlap_path": round(float(r.explain["token_overlap_path"]), 4),
+                                    "token_overlap_text": round(float(r.explain["token_overlap_text"]), 4),
+                                    "path_bonus": round(float(r.explain["path_bonus"]), 4),
+                                    "title_bonus": round(float(r.explain["title_bonus"]), 4),
+                                    "early_text_bonus": round(float(r.explain["early_text_bonus"]), 4),
+                                    "repetition_bonus": round(float(r.explain["repetition_bonus"]), 4),
+                                    "occurrence_count": int(r.explain["occurrence_count"]),
+                                    "first_occurrence": int(r.explain["first_occurrence"]),
+                                }
+                            }
+                            if args.explain_search and r.explain is not None
+                            else {}
+                        ),
                     }
                     for r in results
                 ],
@@ -340,6 +357,18 @@ def main() -> None:
                     f"| cos={r.cosine_sim:.3f}]{flag} {r.relative}"
                 )
                 print(f"       {r.snippet[:100]}…")
+                if args.explain_search and r.explain is not None:
+                    print(
+                        "       explain: "
+                        f"path_overlap={float(r.explain['token_overlap_path']):.3f}, "
+                        f"text_overlap={float(r.explain['token_overlap_text']):.3f}, "
+                        f"path_bonus={float(r.explain['path_bonus']):.3f}, "
+                        f"title_bonus={float(r.explain['title_bonus']):.3f}, "
+                        f"early_bonus={float(r.explain['early_text_bonus']):.3f}, "
+                        f"repeat_bonus={float(r.explain['repetition_bonus']):.3f}, "
+                        f"occurrences={int(r.explain['occurrence_count'])}, "
+                        f"first_pos={int(r.explain['first_occurrence'])}"
+                    )
         return
 
     if not args.input.exists():

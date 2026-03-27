@@ -44,6 +44,7 @@ class SearchResult:
     cosine_sim: float
     snippet: str
     low_confidence: bool = False
+    explain: dict[str, float | int | str] | None = None
 
 
 @dataclass
@@ -77,16 +78,29 @@ def _tokenize(text: str) -> list[str]:
     return re.findall(r"[a-zA-Zа-яА-Я0-9_+-]+", text.lower())
 
 
-def _hybrid_score(query: str, relative: str, text: str, cosine_sim: float) -> float:
+def _score_breakdown(query: str, relative: str, text: str, cosine_sim: float) -> dict[str, float | int | str]:
     """
-    Гибридный скоринг поверх cosine similarity.
+    Возвращает разложение гибридного скоринга по компонентам.
 
     Идея: сохранить латентную семантическую близость, но усилить документы,
     где запрос явно встречается в имени файла, пути или ранних фрагментах текста.
     """
     query_lower = query.strip().lower()
     if not query_lower:
-        return float(cosine_sim)
+        return {
+            "query": query,
+            "query_lower": query_lower,
+            "cosine_sim": float(cosine_sim),
+            "token_overlap_path": 0.0,
+            "token_overlap_text": 0.0,
+            "path_bonus": 0.0,
+            "title_bonus": 0.0,
+            "early_text_bonus": 0.0,
+            "repetition_bonus": 0.0,
+            "occurrence_count": 0,
+            "first_occurrence": -1,
+            "score": float(cosine_sim),
+        }
 
     path_lower = relative.lower()
     text_lower = text.lower()
@@ -133,7 +147,7 @@ def _hybrid_score(query: str, relative: str, text: str, cosine_sim: float) -> fl
     if occurrence_count > 0:
         repetition_bonus = min(0.12, 0.03 * occurrence_count)
 
-    return float(
+    score = float(
         cosine_sim
         + 0.18 * token_overlap_path
         + 0.10 * token_overlap_text
@@ -143,6 +157,24 @@ def _hybrid_score(query: str, relative: str, text: str, cosine_sim: float) -> fl
         + title_bonus
         + repetition_bonus
     )
+    return {
+        "query": query,
+        "query_lower": query_lower,
+        "cosine_sim": float(cosine_sim),
+        "token_overlap_path": float(token_overlap_path),
+        "token_overlap_text": float(token_overlap_text),
+        "path_bonus": float(exact_name_bonus + exact_path_bonus),
+        "title_bonus": float(title_bonus),
+        "early_text_bonus": float(early_text_bonus),
+        "repetition_bonus": float(repetition_bonus),
+        "occurrence_count": int(occurrence_count),
+        "first_occurrence": int(pos),
+        "score": score,
+    }
+
+
+def _hybrid_score(query: str, relative: str, text: str, cosine_sim: float) -> float:
+    return float(_score_breakdown(query, relative, text, cosine_sim)["score"])
 
 
 def _collect_files(corpus_root: Path) -> list[Path]:
@@ -288,7 +320,8 @@ class MarkdownCorpusIndex:
             section = parts[0] if len(parts) > 1 else "."
             snippet = e.texts[i][:120].replace("\n", " ").strip()
             cosine_sim = float(sims[i])
-            score = _hybrid_score(query, relative, e.texts[i], cosine_sim)
+            explain = _score_breakdown(query, relative, e.texts[i], cosine_sim)
+            score = float(explain["score"])
             confidence = max(0.0, min(1.0, 0.7 * cosine_sim + 0.3 * min(score, 1.0)))
             result = SearchResult(
                 path=path,
@@ -299,6 +332,7 @@ class MarkdownCorpusIndex:
                 cosine_sim=cosine_sim,
                 snippet=snippet,
                 low_confidence=confidence < min_cosine,
+                explain=explain,
             )
             scored_results.append((score, result))
 

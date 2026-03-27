@@ -75,7 +75,7 @@ def _strip_markdown(text: str) -> str:
 
 
 def _tokenize(text: str) -> list[str]:
-    return re.findall(r"[a-zA-Zа-яА-Я0-9_+-]+", text.lower())
+    return re.findall(r"[a-zA-Zа-яА-ЯёЁ0-9_+-]+", text.lower())
 
 
 def _score_breakdown(query: str, relative: str, text: str, cosine_sim: float) -> dict[str, float | int | str]:
@@ -91,16 +91,16 @@ def _score_breakdown(query: str, relative: str, text: str, cosine_sim: float) ->
             "query": query,
             "query_lower": query_lower,
             "cosine_sim": float(cosine_sim),
-            "token_overlap_path": 0.0,
-            "token_overlap_text": 0.0,
+            "path_token_overlap": 0.0,
+            "text_token_overlap": 0.0,
             "name_bonus": 0.0,
             "path_substring_bonus": 0.0,
             "path_bonus": 0.0,
             "title_bonus": 0.0,
             "early_text_bonus": 0.0,
             "repetition_bonus": 0.0,
-            "occurrence_count": 0,
-            "first_occurrence": -1,
+            "substring_occurrences": 0,
+            "first_substring_pos": -1,
             "score": float(cosine_sim),
         }
 
@@ -163,16 +163,16 @@ def _score_breakdown(query: str, relative: str, text: str, cosine_sim: float) ->
         "query": query,
         "query_lower": query_lower,
         "cosine_sim": float(cosine_sim),
-        "token_overlap_path": float(token_overlap_path),
-        "token_overlap_text": float(token_overlap_text),
+        "path_token_overlap": float(token_overlap_path),
+        "text_token_overlap": float(token_overlap_text),
         "name_bonus": float(exact_name_bonus),
         "path_substring_bonus": float(exact_path_bonus),
         "path_bonus": float(exact_name_bonus + exact_path_bonus),
         "title_bonus": float(title_bonus),
         "early_text_bonus": float(early_text_bonus),
         "repetition_bonus": float(repetition_bonus),
-        "occurrence_count": int(occurrence_count),
-        "first_occurrence": int(pos),
+        "substring_occurrences": int(occurrence_count),
+        "first_substring_pos": int(pos),
         "score": score,
     }
 

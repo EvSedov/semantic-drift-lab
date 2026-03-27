@@ -14,12 +14,23 @@ Semantic Drift Lab: точка входа.
 """
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
 DEFAULT_MARKDOWN_DIR = Path.home() / "documents"
 DEFAULT_JSONL = Path("data.jsonl")
 OUTPUT_DIR = Path(__file__).parent / "output"
+LOW_INFO_QUERY_CHARS = 2
+RUSSIAN_STOPWORDS = {
+    "и", "в", "во", "на", "но", "а", "я", "мы", "ты", "он", "она", "оно", "они",
+    "не", "да", "или", "что", "как", "к", "ко", "с", "со", "от", "до", "по", "из",
+    "у", "о", "об", "за", "для", "же", "ли", "то",
+}
+ENGLISH_STOPWORDS = {
+    "a", "an", "the", "and", "or", "to", "of", "in", "on", "at", "by", "for",
+    "is", "are", "be", "as", "it", "this", "that",
+}
 
 
 def get_pyplot():
@@ -66,6 +77,36 @@ def import_runtime_symbol(module_name: str, symbol_name: str):
             file=sys.stderr,
         )
         raise SystemExit(1) from exc
+
+
+def _tokenize_query(text: str) -> list[str]:
+    return re.findall(r"[a-zA-Zа-яА-ЯёЁ0-9_+-]+", text.lower())
+
+
+def _low_info_query_reason(query: str) -> str | None:
+    stripped = query.strip()
+    if not stripped:
+        return "Пустой запрос не даёт информации для поиска."
+
+    if len(stripped) < LOW_INFO_QUERY_CHARS:
+        return (
+            f"Запрос слишком короткий: сейчас минимальная длина для осмысленного "
+            f"поиска — {LOW_INFO_QUERY_CHARS} символа."
+        )
+
+    tokens = _tokenize_query(stripped)
+    if not tokens:
+        return "В запросе не нашлось буквенно-цифровых токенов для поиска."
+
+    if len(tokens) == 1:
+        token = tokens[0]
+        if token in RUSSIAN_STOPWORDS or token in ENGLISH_STOPWORDS:
+            return (
+                f'Запрос "{query}" выглядит как стоп-слово и почти не несёт '
+                "тематической информации."
+            )
+
+    return None
 
 
 def parse_args() -> argparse.Namespace:
@@ -277,6 +318,25 @@ def main() -> None:
 
     # ── Дополнительный режим: поиск по markdown-корпусу ──
     if args.doc_query:
+        low_info_reason = _low_info_query_reason(args.doc_query)
+        if low_info_reason is not None:
+            if args.json:
+                indent = 2 if args.pretty else None
+                print(
+                    json.dumps(
+                        {
+                            "query": args.doc_query,
+                            "status": "rejected",
+                            "reason": low_info_reason,
+                        },
+                        ensure_ascii=False,
+                        indent=indent,
+                    )
+                )
+            else:
+                print(f"\n[Docs] Запрос отклонён\n{low_info_reason}")
+            return
+
         MarkdownCorpusIndex = import_runtime_symbol(
             "semantic_drift_lab", "MarkdownCorpusIndex"
         )
@@ -326,16 +386,16 @@ def main() -> None:
                         **(
                             {
                                 "explain": {
-                                    "token_overlap_path": round(float(r.explain["token_overlap_path"]), 4),
-                                    "token_overlap_text": round(float(r.explain["token_overlap_text"]), 4),
+                                    "path_token_overlap": round(float(r.explain["path_token_overlap"]), 4),
+                                    "text_token_overlap": round(float(r.explain["text_token_overlap"]), 4),
                                     "name_bonus": round(float(r.explain["name_bonus"]), 4),
                                     "path_substring_bonus": round(float(r.explain["path_substring_bonus"]), 4),
                                     "path_bonus": round(float(r.explain["path_bonus"]), 4),
                                     "title_bonus": round(float(r.explain["title_bonus"]), 4),
                                     "early_text_bonus": round(float(r.explain["early_text_bonus"]), 4),
                                     "repetition_bonus": round(float(r.explain["repetition_bonus"]), 4),
-                                    "occurrence_count": int(r.explain["occurrence_count"]),
-                                    "first_occurrence": int(r.explain["first_occurrence"]),
+                                    "substring_occurrences": int(r.explain["substring_occurrences"]),
+                                    "first_substring_pos": int(r.explain["first_substring_pos"]),
                                 }
                             }
                             if args.explain_search and r.explain is not None
@@ -363,53 +423,53 @@ def main() -> None:
                     print("       explain:")
                     print(
                         "         "
-                        f"path_overlap={float(r.explain['token_overlap_path']):.3f} "
-                        "(совпадение токенов запроса с путём)"
+                        f"path_token_overlap={float(r.explain['path_token_overlap']):.3f} "
+                        "(доля токенов запроса, найденных в пути как отдельные слова)"
                     )
                     print(
                         "         "
-                        f"text_overlap={float(r.explain['token_overlap_text']):.3f} "
-                        "(совпадение токенов запроса с текстом)"
+                        f"text_token_overlap={float(r.explain['text_token_overlap']):.3f} "
+                        "(доля токенов запроса, найденных в тексте как отдельные слова)"
                     )
                     print(
                         "         "
                         f"name_bonus={float(r.explain['name_bonus']):.3f} "
-                        "(бонус за подстроку в имени файла)"
+                        "(бонус, если запрос встречается внутри имени файла)"
                     )
                     print(
                         "         "
                         f"path_substring_bonus={float(r.explain['path_substring_bonus']):.3f} "
-                        "(бонус за подстроку в полном пути)"
+                        "(бонус, если запрос встречается внутри полного пути)"
                     )
                     print(
                         "         "
                         f"path_bonus={float(r.explain['path_bonus']):.3f} "
-                        "(суммарный бонус пути = имя файла + полный путь)"
+                        "(общий бонус от совпадений в имени файла и пути)"
                     )
                     print(
                         "         "
                         f"title_bonus={float(r.explain['title_bonus']):.3f} "
-                        "(бонус за совпадение в начале документа)"
+                        "(бонус, если запрос встретился в самом начале документа)"
                     )
                     print(
                         "         "
                         f"early_bonus={float(r.explain['early_text_bonus']):.3f} "
-                        "(бонус за раннее появление в тексте)"
+                        "(бонус, если запрос появился рано в тексте)"
                     )
                     print(
                         "         "
                         f"repeat_bonus={float(r.explain['repetition_bonus']):.3f} "
-                        "(бонус за повторяемость запроса)"
+                        "(бонус за несколько подстрочных вхождений запроса)"
                     )
                     print(
                         "         "
-                        f"occurrences={int(r.explain['occurrence_count'])} "
-                        "(сколько раз запрос встретился)"
+                        f"substring_occurrences={int(r.explain['substring_occurrences'])} "
+                        "(сколько раз строка запроса встретилась в тексте)"
                     )
                     print(
                         "         "
-                        f"first_pos={int(r.explain['first_occurrence'])} "
-                        "(позиция первого вхождения в тексте)"
+                        f"first_substring_pos={int(r.explain['first_substring_pos'])} "
+                        "(позиция первого подстрочного вхождения в тексте)"
                     )
         return
 

@@ -358,16 +358,46 @@ def main() -> None:
                 )
                 print(f"       {r.snippet[:100]}…")
                 if args.explain_search and r.explain is not None:
+                    print("       explain:")
                     print(
-                        "       explain: "
-                        f"path_overlap={float(r.explain['token_overlap_path']):.3f}, "
-                        f"text_overlap={float(r.explain['token_overlap_text']):.3f}, "
-                        f"path_bonus={float(r.explain['path_bonus']):.3f}, "
-                        f"title_bonus={float(r.explain['title_bonus']):.3f}, "
-                        f"early_bonus={float(r.explain['early_text_bonus']):.3f}, "
-                        f"repeat_bonus={float(r.explain['repetition_bonus']):.3f}, "
-                        f"occurrences={int(r.explain['occurrence_count'])}, "
-                        f"first_pos={int(r.explain['first_occurrence'])}"
+                        "         "
+                        f"path_overlap={float(r.explain['token_overlap_path']):.3f} "
+                        "(совпадение токенов запроса с путём)"
+                    )
+                    print(
+                        "         "
+                        f"text_overlap={float(r.explain['token_overlap_text']):.3f} "
+                        "(совпадение токенов запроса с текстом)"
+                    )
+                    print(
+                        "         "
+                        f"path_bonus={float(r.explain['path_bonus']):.3f} "
+                        "(бонус за имя файла или путь)"
+                    )
+                    print(
+                        "         "
+                        f"title_bonus={float(r.explain['title_bonus']):.3f} "
+                        "(бонус за совпадение в начале документа)"
+                    )
+                    print(
+                        "         "
+                        f"early_bonus={float(r.explain['early_text_bonus']):.3f} "
+                        "(бонус за раннее появление в тексте)"
+                    )
+                    print(
+                        "         "
+                        f"repeat_bonus={float(r.explain['repetition_bonus']):.3f} "
+                        "(бонус за повторяемость запроса)"
+                    )
+                    print(
+                        "         "
+                        f"occurrences={int(r.explain['occurrence_count'])} "
+                        "(сколько раз запрос встретился)"
+                    )
+                    print(
+                        "         "
+                        f"first_pos={int(r.explain['first_occurrence'])} "
+                        "(позиция первого вхождения в тексте)"
                     )
         return
 

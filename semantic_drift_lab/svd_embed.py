@@ -1,9 +1,9 @@
 """
-SVD Embedder — шаг 1 пайплайна DEMON.
+SVD Embedder — шаг 1 пайплайна Semantic Drift Lab.
 
 Преобразует коллекцию текстов в компактные векторы через TF-IDF + TruncatedSVD
-(Latent Semantic Analysis). Аналог того, как DEMON сжимает корпус 545K слов
-из ~50D до ~28D при сохранении 90% дисперсии.
+(Latent Semantic Analysis), чтобы анализировать геометрию корпуса в
+интерпретируемом низкоразмерном пространстве.
 """
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer

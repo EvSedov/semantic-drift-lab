@@ -1,5 +1,5 @@
 """
-Takens Embedding — шаг 2 пайплайна DEMON.
+Takens Embedding — шаг 2 пайплайна Semantic Drift Lab.
 
 Реализует теорему Такенса (1981): из скалярного временного ряда x(t)
 строит delay-векторы [x(t), x(t-τ), ..., x(t-(m-1)τ)], которые

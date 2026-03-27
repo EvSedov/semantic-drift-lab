@@ -170,7 +170,7 @@ python run.py --kb-query "kalman drift" --kb-path ~/knowledge-base
 При повторных запусках индекс поднимается из кэша:
 
 ```text
-~/.cache/demon-manifold/kb_index.pkl
+~/.cache/semantic-drift-lab/markdown_corpus_index.pkl
 ```
 
 Если нужно пересчитать индекс вручную:

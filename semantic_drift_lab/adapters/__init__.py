@@ -3,10 +3,10 @@
 """
 
 from .markdown_corpus import MarkdownCorpusIndex, SearchResult
-from .pai_jsonl import load_pai_jsonl
+from .generic_jsonl import load_jsonl_records
 
 __all__ = [
     "MarkdownCorpusIndex",
     "SearchResult",
-    "load_pai_jsonl",
+    "load_jsonl_records",
 ]

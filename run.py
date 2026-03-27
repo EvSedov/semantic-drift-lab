@@ -17,9 +17,8 @@ import json
 import sys
 from pathlib import Path
 
-DEFAULT_KB = Path.home() / "knowledge-base"
-
-DEFAULT_JSONL = Path.home() / ".claude/MEMORY/LEARNING/REFLECTIONS/algorithm-reflections.jsonl"
+DEFAULT_MARKDOWN_DIR = Path.home() / "documents"
+DEFAULT_JSONL = Path("data.jsonl")
 OUTPUT_DIR = Path(__file__).parent / "output"
 
 
@@ -55,8 +54,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--json", action="store_true", help="Вывести результат как JSON (без визуализаций)")
     parser.add_argument("--pretty", action="store_true", help="JSON с отступами (используется с --json)")
     parser.add_argument("--find-similar", metavar="QUERY", help="Найти записи корпуса, похожие на текст запроса")
-    parser.add_argument("--kb-query", metavar="QUERY", help="Поиск по markdown-корпусу (дополнительный режим)")
-    parser.add_argument("--kb-path", type=Path, default=DEFAULT_KB, help="Путь к markdown-корпусу (по умолчанию ~/knowledge-base)")
+    parser.add_argument("--doc-query", metavar="QUERY", help="Поиск по markdown-документам (дополнительный режим)")
+    parser.add_argument("--doc-path", type=Path, default=DEFAULT_MARKDOWN_DIR, help="Путь к markdown-документам (по умолчанию ~/documents)")
     parser.add_argument("--rebuild-index", action="store_true", help="Принудительно пересчитать индекс markdown-корпуса")
     parser.add_argument("--min-cosine", type=float, default=0.80, help="Минимальный порог cos для поиска по markdown-корпусу (по умолчанию 0.80)")
     return parser.parse_args()
@@ -69,7 +68,7 @@ def to_json(result, top_k: int) -> dict:
 
     return {
         "meta": {
-            "n_sessions": len(records),
+            "n_records": len(records),
             "svd_explained_variance": round(result.svd_explained_variance, 4),
             "n_attractors": result.n_attractors,
             "attractor_indices": result.attractor_indices,
@@ -85,7 +84,7 @@ def to_json(result, top_k: int) -> dict:
             }
             for r in records
         ],
-        "similar_sessions": {
+        "similar_records": {
             str(i): [
                 {
                     "idx": s.idx,
@@ -95,13 +94,13 @@ def to_json(result, top_k: int) -> dict:
                 }
                 for s in sims[:top_k]
             ]
-            for i, sims in result.similar_sessions.items()
+            for i, sims in result.similar_records.items()
         },
         "drift": {
             "drift_score": round(kr.drift_score, 4),
             "has_drift": bool(kr.drift_flags.any()),
             "drift_indices": [int(i) for i, f in enumerate(kr.drift_flags) if f],
-            "sentiments": [r.sentiment for r in records],
+            "signal": [r.sentiment for r in records],
             "smoothed": [round(float(x), 3) for x in kr.smoothed],
             "innovations": [round(float(x), 3) for x in kr.innovations],
         },
@@ -123,14 +122,14 @@ def run_report(result, top_k: int) -> None:
     records = result.records
     n = len(records)
 
-    print_section(f"Semantic Drift Lab | {n} сессий проанализировано")
+    print_section(f"Semantic Drift Lab | {n} записей проанализировано")
 
     # SVD info
     print(f"\n[SVD] Объяснённая дисперсия: {result.svd_explained_variance:.1%}")
-    print(f"[kNN] Аттракторов (устойчивых сессий): {result.n_attractors}/{n}")
+    print(f"[kNN] Устойчивых точек: {result.n_attractors}/{n}")
 
     # kNN Stability
-    print_section("kNN Stability — устойчивые сессии (аттракторы)")
+    print_section("kNN Stability — устойчивые записи (аттракторы)")
     sorted_by_stability = sorted(
         enumerate(result.stability_scores), key=lambda x: x[1], reverse=True
     )
@@ -139,20 +138,20 @@ def run_report(result, top_k: int) -> None:
         task_short = records[i].task[:55] + "…" if len(records[i].task) > 55 else records[i].task
         print(f"  {rank}. {marker} [{score:.3f}] {task_short}")
 
-    # Похожие сессии
-    print_section(f"Похожие сессии (топ-{top_k} по косинусному сходству)")
+    # Похожие записи
+    print_section(f"Похожие записи (топ-{top_k} по косинусному сходству)")
     for i, rec in enumerate(records):
         task_short = rec.task[:50] + "…" if len(rec.task) > 50 else rec.task
         print(f"\n  [{i}] {task_short} (sentiment={rec.sentiment})")
-        for sim in result.similar_sessions[i][:top_k]:
+        for sim in result.similar_records[i][:top_k]:
             sim_task = sim.task[:45] + "…" if len(sim.task) > 45 else sim.task
             print(f"       → [{sim.idx}] cos={sim.cosine_sim:.3f} | {sim_task}")
 
     # Kalman drift
-    print_section("Kalman Drift Detection — качество работы PAI")
+    print_section("Kalman Drift Detection — динамика сигнала")
     kr = result.kalman
     sentiments = [r.sentiment for r in records]
-    print(f"  Ряд sentiment: {[round(s, 1) for s in sentiments]}")
+    print(f"  Сигнал:        {[round(s, 1) for s in sentiments]}")
     print(f"  Сглажено:      {[round(float(x), 1) for x in kr.smoothed]}")
     print(f"  Drift score:   {kr.drift_score:.1%}")
 
@@ -226,10 +225,10 @@ def plot_drift(result, output_dir: Path) -> None:
         drift_y = [sentiments[i] for i in drift_x]
         ax1.scatter(drift_x, drift_y, color="red", zorder=5, s=100, label="drift detected")
 
-    ax1.set_ylabel("implied_sentiment")
+    ax1.set_ylabel("signal")
     ax1.set_ylim(0, 11)
     ax1.legend()
-    ax1.set_title("Kalman Drift Detection — качество сессий PAI")
+    ax1.set_title("Kalman Drift Detection — динамика сигнала")
     ax1.grid(True, alpha=0.3)
 
     # Нижний график: innovations
@@ -252,18 +251,18 @@ def main() -> None:
     args = parse_args()
 
     # ── Дополнительный режим: поиск по markdown-корпусу ──
-    if args.kb_query:
+    if args.doc_query:
         from semantic_drift_lab import MarkdownCorpusIndex
 
-        if not args.kb_path.exists():
-            print(f"KB не найден: {args.kb_path}", file=sys.stderr)
+        if not args.doc_path.exists():
+            print(f"Директория не найдена: {args.doc_path}", file=sys.stderr)
             sys.exit(1)
         index = MarkdownCorpusIndex.build(
-            args.kb_path,
+            args.doc_path,
             force_rebuild=args.rebuild_index,
             verbose=not args.json,
         )
-        results = index.search(args.kb_query, top_k=args.top_k, min_cosine=args.min_cosine)
+        results = index.search(args.doc_query, top_k=args.top_k, min_cosine=args.min_cosine)
 
         top1_cos = results[0].cosine_sim if results else 0.0
         if top1_cos >= 0.85:
@@ -274,12 +273,12 @@ def main() -> None:
             trust_label = "⚠️  Доверяй с осторожностью"
         else:
             trust = "none"
-            trust_label = "❌ Не доверяй — тема, вероятно, отсутствует в KB"
+            trust_label = "❌ Не доверяй — тема, вероятно, отсутствует в корпусе"
 
         if args.json:
             indent = 2 if args.pretty else None
             output = {
-                "query": args.kb_query,
+                "query": args.doc_query,
                 "n_indexed": index.n_files,
                 "min_cosine": args.min_cosine,
                 "trust": trust,
@@ -297,8 +296,8 @@ def main() -> None:
             }
             print(json.dumps(output, ensure_ascii=False, indent=indent))
         else:
-            print(f'\n[KB] {trust_label} | top-1 cos={top1_cos:.3f}')
-            print(f'Результаты по запросу: "{args.kb_query}"\n')
+            print(f'\n[Docs] {trust_label} | top-1 cos={top1_cos:.3f}')
+            print(f'Результаты по запросу: "{args.doc_query}"\n')
             for rank, r in enumerate(results, 1):
                 flag = " ⚠️" if r.low_confidence else ""
                 print(f"  {rank}. [{r.cosine_sim:.3f}]{flag} {r.relative}")
@@ -332,7 +331,7 @@ def main() -> None:
             }
             print(json.dumps(output, ensure_ascii=False, indent=indent))
         else:
-            print(f'\nПохожие сессии для: "{args.find_similar}"\n')
+            print(f'\nПохожие записи для: "{args.find_similar}"\n')
             for rank, s in enumerate(matches, 1):
                 print(f"  {rank}. [{s.idx}] cos={s.cosine_sim:.3f} | {s.task}")
         return

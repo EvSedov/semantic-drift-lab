@@ -9,7 +9,7 @@ from .takens_embed import takens_embedding
 from .knn_stability import knn_stability
 from .kalman_drift import KalmanDrift
 from .pipeline import SemanticDriftPipeline, CorpusRecord
-from .adapters import MarkdownCorpusIndex, SearchResult, load_pai_jsonl
+from .adapters import MarkdownCorpusIndex, SearchResult, load_jsonl_records
 
 __all__ = [
     "SVDEmbedder",
@@ -20,5 +20,5 @@ __all__ = [
     "CorpusRecord",
     "MarkdownCorpusIndex",
     "SearchResult",
-    "load_pai_jsonl",
+    "load_jsonl_records",
 ]

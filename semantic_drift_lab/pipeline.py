@@ -40,18 +40,6 @@ class CorpusRecord:
     def sentiment(self) -> float:
         return float(self.signal)
 
-    @property
-    def criteria_count(self) -> int:
-        return int(self.meta.get("criteria_count", 0))
-
-    @property
-    def criteria_passed(self) -> int:
-        return int(self.meta.get("criteria_passed", 0))
-
-    @property
-    def within_budget(self) -> bool:
-        return bool(self.meta.get("within_budget", True))
-
 @dataclass
 class SimilarSession:
     idx: int
@@ -66,9 +54,9 @@ class PipelineResult:
     embeddings: np.ndarray              # (n, svd_components)
     stability_scores: np.ndarray        # (n,) — kNN stability
     attractor_indices: list[int]        # индексы устойчивых точек
-    similar_sessions: dict[int, list[SimilarSession]]  # idx → топ-K похожих
-    kalman: KalmanResult                # результат Kalman на ряду sentiment
-    takens_embedded: np.ndarray         # delay embedding sentiment-ряда
+    similar_records: dict[int, list[SimilarSession]]  # idx → топ-K похожих записей
+    kalman: KalmanResult                # результат Kalman на сигнальном ряду
+    takens_embedded: np.ndarray         # delay embedding сигнального ряда
     svd_explained_variance: float
     n_attractors: int
     embedder: SVDEmbedder = field(default=None, repr=False)  # для find_similar
@@ -98,10 +86,10 @@ class SemanticDriftPipeline:
         self.top_k_similar = top_k_similar
 
     def load_jsonl(self, path: str | Path) -> list[CorpusRecord]:
-        """Загружает PAI-подобный JSONL через адаптер."""
-        from .adapters.pai_jsonl import load_pai_jsonl
+        """Загружает JSONL через универсальный адаптер."""
+        from .adapters.generic_jsonl import load_jsonl_records
 
-        return load_pai_jsonl(path)
+        return load_jsonl_records(path)
 
     def run(self, jsonl_path: str | Path) -> PipelineResult:
         records = self.load_jsonl(jsonl_path)
@@ -122,7 +110,7 @@ class SemanticDriftPipeline:
         stability = knn_stability(embeddings, k=self.knn_k, epsilon=self.knn_epsilon)
         attractors = [i for i, s in enumerate(stability) if attractor_mask(np.array([s]))[0]]
 
-        # ── Шаг 3: Похожие сессии через косинусное сходство ──
+        # ── Шаг 3: Похожие записи через косинусное сходство ──
         # embeddings уже L2-нормализованы → dot product = cosine similarity
         sim_matrix = embeddings @ embeddings.T
         np.fill_diagonal(sim_matrix, -1)  # исключаем самосходство
@@ -159,7 +147,7 @@ class SemanticDriftPipeline:
             embeddings=embeddings,
             stability_scores=stability,
             attractor_indices=attractors,
-            similar_sessions=similar,
+            similar_records=similar,
             kalman=kalman_result,
             takens_embedded=takens,
             svd_explained_variance=embedder.explained_variance_ratio_,
@@ -173,10 +161,7 @@ class SemanticDriftPipeline:
         result: PipelineResult,
         top_k: int | None = None,
     ) -> list[SimilarSession]:
-        """
-        Найти сессии из result, наиболее похожие на произвольный текст query.
-        Использует уже обученный embedder из PipelineResult.
-        """
+        """Найти записи из result, наиболее похожие на произвольный текст query."""
         k = top_k or self.top_k_similar
         query_vec = result.embedder.transform([query])  # (1, n_components)
         sims = (result.embeddings @ query_vec.T).flatten()  # cosine similarity

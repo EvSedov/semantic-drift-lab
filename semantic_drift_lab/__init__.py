@@ -1,25 +1,15 @@
 """
 Semantic Drift Lab.
 
-Новый канонический пакет проекта. На текущем этапе он переиспользует
-реализацию из исторического пакета `demon`, чтобы переход на новое имя
-был постепенным и без ломающих изменений.
+Новый канонический пакет проекта.
 """
 
-from demon import (
-    SVDEmbedder,
-    takens_embedding,
-    knn_stability,
-    KalmanDrift,
-    DemonPipeline,
-    CorpusRecord,
-    SessionRecord,
-    MarkdownCorpusIndex,
-    SearchResult,
-    KBIndex,
-    KBResult,
-    load_pai_jsonl,
-)
+from .svd_embed import SVDEmbedder
+from .takens_embed import takens_embedding
+from .knn_stability import knn_stability
+from .kalman_drift import KalmanDrift
+from .pipeline import DemonPipeline, CorpusRecord, SessionRecord
+from .adapters import MarkdownCorpusIndex, SearchResult, KBIndex, KBResult, load_pai_jsonl
 
 # Новое каноническое имя пайплайна.
 SemanticDriftPipeline = DemonPipeline

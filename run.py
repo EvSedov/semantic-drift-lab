@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 DEMON-Manifold: точка входа.
-Запускает полный пайплайн на REFLECTIONS.jsonl и сохраняет визуализации.
+Запускает универсальный аналитический пайплайн для текстового корпуса
+и опционального числового ряда, а также поддерживает отдельный поиск
+по markdown-корпусу.
 
 Использование:
     .venv/bin/python run.py
@@ -30,17 +32,19 @@ OUTPUT_DIR = Path(__file__).parent / "output"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="DEMON-Manifold pipeline")
+    parser = argparse.ArgumentParser(
+        description="DEMON-Manifold: анализ текстового корпуса, похожих записей и drift-сигнала"
+    )
     parser.add_argument("--input", type=Path, default=DEFAULT_JSONL)
     parser.add_argument("--top-k", type=int, default=3)
     parser.add_argument("--svd-components", type=int, default=8)
     parser.add_argument("--json", action="store_true", help="Вывести результат как JSON (без визуализаций)")
     parser.add_argument("--pretty", action="store_true", help="JSON с отступами (используется с --json)")
-    parser.add_argument("--find-similar", metavar="QUERY", help="Найти сессии похожие на текст запроса")
-    parser.add_argument("--kb-query", metavar="QUERY", help="Поиск по knowledge-base markdown файлам")
-    parser.add_argument("--kb-path", type=Path, default=DEFAULT_KB, help="Путь к knowledge-base (по умолчанию ~/knowledge-base)")
-    parser.add_argument("--rebuild-index", action="store_true", help="Принудительно пересчитать KB-индекс")
-    parser.add_argument("--min-cosine", type=float, default=0.80, help="Минимальный порог cos для KB-поиска (по умолчанию 0.80)")
+    parser.add_argument("--find-similar", metavar="QUERY", help="Найти записи корпуса, похожие на текст запроса")
+    parser.add_argument("--kb-query", metavar="QUERY", help="Поиск по markdown-корпусу (дополнительный режим)")
+    parser.add_argument("--kb-path", type=Path, default=DEFAULT_KB, help="Путь к markdown-корпусу (по умолчанию ~/knowledge-base)")
+    parser.add_argument("--rebuild-index", action="store_true", help="Принудительно пересчитать индекс markdown-корпуса")
+    parser.add_argument("--min-cosine", type=float, default=0.80, help="Минимальный порог cos для поиска по markdown-корпусу (по умолчанию 0.80)")
     return parser.parse_args()
 
 
@@ -229,7 +233,7 @@ def plot_drift(result, output_dir: Path) -> None:
 def main() -> None:
     args = parse_args()
 
-    # ── Режим: поиск по knowledge-base ──
+    # ── Дополнительный режим: поиск по markdown-корпусу ──
     if args.kb_query:
         if not args.kb_path.exists():
             print(f"KB не найден: {args.kb_path}", file=sys.stderr)

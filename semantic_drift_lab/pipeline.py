@@ -79,7 +79,7 @@ class PipelineResult:
     embedder: SVDEmbedder = field(default=None, repr=False)  # для find_similar
 
 
-class DemonPipeline:
+class SemanticDriftPipeline:
     """Детерминированный пайплайн для анализа текстового корпуса и сигнала."""
 
     def __init__(
@@ -201,13 +201,13 @@ class DemonPipeline:
         ]
 
 
-SemanticDriftPipeline = DemonPipeline
+DemonPipeline = SemanticDriftPipeline
 
 __all__ = [
     "CorpusRecord",
     "SessionRecord",
     "SimilarSession",
     "PipelineResult",
-    "DemonPipeline",
     "SemanticDriftPipeline",
+    "DemonPipeline",
 ]

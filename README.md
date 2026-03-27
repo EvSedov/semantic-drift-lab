@@ -441,6 +441,22 @@ jsonl-экспорт    -> jsonl-адаптер   -> records -> пайплайн
 python3 scripts/build_jsonl_from_folder.py ./documents --output data.jsonl --strip-markdown
 ```
 
+Для табличных экспортов есть вторая утилита:
+
+[`scripts/build_jsonl_from_csv.py`](./scripts/build_jsonl_from_csv.py)
+
+Она позволяет указать, какие колонки считать `label`, `text`, `signal`, `category` и `source`.
+
+Пример:
+
+```bash
+python3 scripts/build_jsonl_from_csv.py data.csv \
+  --text-column description \
+  --label-column title \
+  --signal-column score \
+  --output data.jsonl
+```
+
 ## Структура проекта
 
 ```text
@@ -451,6 +467,7 @@ semantic_drift_lab/   # основной пакет проекта
     __init__.py
 scripts/
   build_jsonl_from_folder.py  # сборка data.jsonl из папки с текстовыми файлами
+  build_jsonl_from_csv.py     # сборка data.jsonl из CSV
 run.py              # CLI и точка входа
 requirements.txt    # зависимости
 README.md

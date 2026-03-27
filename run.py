@@ -17,18 +17,32 @@ import json
 import sys
 from pathlib import Path
 
-# WSL / headless окружение — используем Agg backend до импорта pyplot
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
-
-from demon import DemonPipeline, MarkdownCorpusIndex
-
 DEFAULT_KB = Path.home() / "knowledge-base"
 
 DEFAULT_JSONL = Path.home() / ".claude/MEMORY/LEARNING/REFLECTIONS/algorithm-reflections.jsonl"
 OUTPUT_DIR = Path(__file__).parent / "output"
+
+
+def get_pyplot():
+    """
+    Ленивая загрузка pyplot только в графических режимах.
+
+    Это позволяет использовать `--help` и JSON-режимы даже там, где
+    matplotlib не установлен в системном Python.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    return plt
+
+
+def get_numpy():
+    """Ленивая загрузка numpy только там, где он реально нужен."""
+    import numpy as np
+
+    return np
 
 
 def parse_args() -> argparse.Namespace:
@@ -105,6 +119,7 @@ def print_section(title: str) -> None:
 
 
 def run_report(result, top_k: int) -> None:
+    np = get_numpy()
     records = result.records
     n = len(records)
 
@@ -161,6 +176,7 @@ def run_report(result, top_k: int) -> None:
 
 def plot_clusters(result, output_dir: Path) -> None:
     """Визуализация SVD-эмбеддингов с stability окраской."""
+    plt = get_pyplot()
     embeddings = result.embeddings
     stability = result.stability_scores
 
@@ -192,6 +208,8 @@ def plot_clusters(result, output_dir: Path) -> None:
 
 def plot_drift(result, output_dir: Path) -> None:
     """Визуализация Kalman-сглаживания и дрейфа."""
+    np = get_numpy()
+    plt = get_pyplot()
     kr = result.kalman
     sentiments = [r.sentiment for r in result.records]
     n = len(sentiments)
@@ -235,6 +253,8 @@ def main() -> None:
 
     # ── Дополнительный режим: поиск по markdown-корпусу ──
     if args.kb_query:
+        from demon import MarkdownCorpusIndex
+
         if not args.kb_path.exists():
             print(f"KB не найден: {args.kb_path}", file=sys.stderr)
             sys.exit(1)
@@ -288,6 +308,8 @@ def main() -> None:
     if not args.input.exists():
         print(f"Файл не найден: {args.input}", file=sys.stderr)
         sys.exit(1)
+
+    from demon import DemonPipeline
 
     pipeline = DemonPipeline(
         svd_components=args.svd_components,

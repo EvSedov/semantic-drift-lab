@@ -350,11 +350,15 @@ def main() -> None:
             verbose=not args.json,
         )
         results = index.search(args.doc_query, top_k=args.top_k, min_cosine=args.min_cosine)
+        no_results = (not results) or max((r.score for r in results), default=0.0) <= 0.0
 
         top1_score = results[0].score if results else 0.0
         top1_conf = results[0].confidence if results else 0.0
         top1_cos = results[0].cosine_sim if results else 0.0
-        if top1_conf >= 0.85:
+        if no_results:
+            trust = "none"
+            trust_label = "❌ Ничего не найдено"
+        elif top1_conf >= 0.85:
             trust = "high"
             trust_label = "✅ Можно доверять"
         elif top1_conf >= 0.80:
@@ -368,13 +372,14 @@ def main() -> None:
             indent = 2 if args.pretty else None
             output = {
                 "query": args.doc_query,
+                "status": "no_results" if no_results else "ok",
                 "n_indexed": index.n_files,
                 "min_cosine": args.min_cosine,
                 "trust": trust,
                 "top1_confidence": round(top1_conf, 4),
                 "top1_score": round(top1_score, 4),
                 "top1_cosine": round(top1_cos, 4),
-                "results": [
+                "results": [] if no_results else [
                     {
                         "relative": r.relative,
                         "section": r.section,
@@ -407,6 +412,10 @@ def main() -> None:
             }
             print(json.dumps(output, ensure_ascii=False, indent=indent))
         else:
+            if no_results:
+                print(f'\n[Docs] {trust_label}\nПо запросу "{args.doc_query}" в корпусе ничего не найдено.')
+                return
+
             print(
                 f"\n[Docs] {trust_label} | top-1 confidence={top1_conf:.3f} "
                 f"| score={top1_score:.3f} | cos={top1_cos:.3f}"
